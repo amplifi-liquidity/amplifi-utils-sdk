@@ -1,8 +1,7 @@
 import { SupportedChainId } from '@ichidao/ichi-vaults-sdk';
-import { StaticJsonRpcProvider } from '@ethersproject/providers';
-import { getProvider, setRpcCacheUpdateInterval, DEFAULT_RPC_URLS } from './index';
+import { getProvider, getProviderV6, setRpcCacheUpdateInterval, DEFAULT_RPC_URLS } from './index';
 
-// Mock StaticJsonRpcProvider to avoid real network calls
+// Mock ethers v5
 jest.mock('@ethersproject/providers', () => {
   const mockProvider = {
     getBlockNumber: jest.fn().mockResolvedValue(12345),
@@ -11,6 +10,19 @@ jest.mock('@ethersproject/providers', () => {
     StaticJsonRpcProvider: jest.fn().mockImplementation(() => mockProvider),
   };
 });
+
+// Mock ethers v6
+jest.mock('ethers', () => {
+  const mockProvider = {
+    getBlockNumber: jest.fn().mockResolvedValue(12345),
+  };
+  return {
+    JsonRpcProvider: jest.fn().mockImplementation(() => mockProvider),
+  };
+});
+
+const { StaticJsonRpcProvider } = require('@ethersproject/providers');
+const { JsonRpcProvider } = require('ethers');
 
 describe('DEFAULT_RPC_URLS', () => {
   it('should have an entry for every SupportedChainId', () => {
@@ -24,9 +36,8 @@ describe('DEFAULT_RPC_URLS', () => {
   });
 });
 
-describe('getProvider', () => {
+describe('getProvider (ethers v5)', () => {
   beforeEach(() => {
-    // Reset cache between tests by setting interval to 0
     setRpcCacheUpdateInterval(0);
     jest.clearAllMocks();
   });
@@ -35,7 +46,7 @@ describe('getProvider', () => {
     setRpcCacheUpdateInterval(30_000);
   });
 
-  it('should return a StaticJsonRpcProvider for a valid chain', async () => {
+  it('should return a provider for a valid chain', async () => {
     const provider = await getProvider(SupportedChainId.mainnet);
     expect(provider).toBeDefined();
     expect(StaticJsonRpcProvider).toHaveBeenCalled();
@@ -60,7 +71,6 @@ describe('getProvider', () => {
   it('should support comma-separated env var hosts', async () => {
     process.env.BASE_RPC_HOSTS = 'https://rpc1.example.com, https://rpc2.example.com';
     await getProvider(SupportedChainId.base);
-    // Should use the first host
     expect(StaticJsonRpcProvider).toHaveBeenCalledWith({
       url: 'https://rpc1.example.com',
     });
@@ -72,7 +82,7 @@ describe('getProvider', () => {
       .mockRejectedValueOnce(new Error('connection failed'))
       .mockResolvedValueOnce(99999);
 
-    (StaticJsonRpcProvider as unknown as jest.Mock).mockImplementation(() => ({
+    StaticJsonRpcProvider.mockImplementation(() => ({
       getBlockNumber: mockGetBlockNumber,
     }));
 
@@ -90,12 +100,76 @@ describe('getProvider', () => {
     const provider1 = await getProvider(SupportedChainId.scroll);
     const provider2 = await getProvider(SupportedChainId.scroll);
     expect(provider1).toBe(provider2);
-    // StaticJsonRpcProvider should only be constructed once
     expect(StaticJsonRpcProvider).toHaveBeenCalledTimes(1);
   });
+});
 
+describe('getProviderV6 (ethers v6)', () => {
+  beforeEach(() => {
+    setRpcCacheUpdateInterval(0);
+    jest.clearAllMocks();
+  });
+
+  afterAll(() => {
+    setRpcCacheUpdateInterval(30_000);
+  });
+
+  it('should return a provider for a valid chain', async () => {
+    const provider = await getProviderV6(SupportedChainId.mainnet);
+    expect(provider).toBeDefined();
+    expect(JsonRpcProvider).toHaveBeenCalled();
+  });
+
+  it('should use the default RPC URL when no env var is set', async () => {
+    await getProviderV6(SupportedChainId.polygon);
+    expect(JsonRpcProvider).toHaveBeenCalledWith(
+      DEFAULT_RPC_URLS[SupportedChainId.polygon],
+    );
+  });
+
+  it('should use env var RPC host when set', async () => {
+    process.env.LINEA_RPC_HOSTS = 'https://custom-v6-rpc.example.com';
+    await getProviderV6(SupportedChainId.linea);
+    expect(JsonRpcProvider).toHaveBeenCalledWith('https://custom-v6-rpc.example.com');
+    delete process.env.LINEA_RPC_HOSTS;
+  });
+
+  it('should fall back to next host if first fails', async () => {
+    const mockGetBlockNumber = jest.fn()
+      .mockRejectedValueOnce(new Error('connection failed'))
+      .mockResolvedValueOnce(99999);
+
+    JsonRpcProvider.mockImplementation(() => ({
+      getBlockNumber: mockGetBlockNumber,
+    }));
+
+    process.env.SONIC_RPC_HOSTS = 'https://bad-rpc.example.com,https://good-rpc.example.com';
+    await getProviderV6(SupportedChainId.sonic);
+
+    expect(JsonRpcProvider).toHaveBeenCalledTimes(2);
+    expect(JsonRpcProvider).toHaveBeenNthCalledWith(1, 'https://bad-rpc.example.com');
+    expect(JsonRpcProvider).toHaveBeenNthCalledWith(2, 'https://good-rpc.example.com');
+    delete process.env.SONIC_RPC_HOSTS;
+  });
+
+  it('should return cached provider within TTL', async () => {
+    setRpcCacheUpdateInterval(60_000);
+    const provider1 = await getProviderV6(SupportedChainId.scroll);
+    const provider2 = await getProviderV6(SupportedChainId.scroll);
+    expect(provider1).toBe(provider2);
+    expect(JsonRpcProvider).toHaveBeenCalledTimes(1);
+  });
+
+  it('should use separate cache from v5', async () => {
+    setRpcCacheUpdateInterval(60_000);
+    const v5 = await getProvider(SupportedChainId.mainnet);
+    const v6 = await getProviderV6(SupportedChainId.mainnet);
+    expect(v5).not.toBe(v6);
+  });
+});
+
+describe('env var derivation', () => {
   it('should derive correct env var names from chain enum', () => {
-    // Verify the naming convention by checking a few examples
     expect(SupportedChainId[SupportedChainId.mainnet].toUpperCase() + '_RPC_HOSTS').toBe('MAINNET_RPC_HOSTS');
     expect(SupportedChainId[SupportedChainId.polygon_zkevm].toUpperCase() + '_RPC_HOSTS').toBe('POLYGON_ZKEVM_RPC_HOSTS');
     expect(SupportedChainId[SupportedChainId.zksync_era].toUpperCase() + '_RPC_HOSTS').toBe('ZKSYNC_ERA_RPC_HOSTS');

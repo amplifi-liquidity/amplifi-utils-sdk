@@ -11,11 +11,14 @@ npm install @amplifi-liquidity/amplifi-utils-sdk
 ### Peer dependencies
 
 - `@ichidao/ichi-vaults-sdk` (>=0.1.0)
-- `@ethersproject/providers` (^5.0.0)
+- `@ethersproject/providers` (^5.0.0) — optional, needed for `getProvider`
+- `ethers` (^6.0.0) — optional, needed for `getProviderV6`
+
+You only need the ethers version you use. Both can coexist.
 
 ## Usage
 
-### getProvider
+### getProvider (ethers v5)
 
 Returns a cached `StaticJsonRpcProvider` for a given chain.
 
@@ -27,12 +30,24 @@ const provider = await getProvider(SupportedChainId.polygon);
 const blockNumber = await provider.getBlockNumber();
 ```
 
+### getProviderV6 (ethers v6)
+
+Returns a cached `JsonRpcProvider` for a given chain.
+
+```typescript
+import { SupportedChainId } from '@ichidao/ichi-vaults-sdk';
+import { getProviderV6 } from '@amplifi-liquidity/amplifi-utils-sdk';
+
+const provider = await getProviderV6(SupportedChainId.polygon);
+const blockNumber = await provider.getBlockNumber();
+```
+
 ### RPC resolution order
 
 1. **Environment variable** — reads `<CHAIN_NAME>_RPC_HOSTS` (comma-separated). If a host fails, the next one is tried.
 2. **Default RPC URL** — falls back to a built-in public RPC endpoint.
 
-Providers are cached for 30 seconds by default.
+Providers are cached for 30 seconds by default. The v5 and v6 functions use separate caches.
 
 ### Environment variables
 

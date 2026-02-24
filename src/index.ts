@@ -1,4 +1,3 @@
-import { StaticJsonRpcProvider } from '@ethersproject/providers';
 import { SupportedChainId } from '@ichidao/ichi-vaults-sdk';
 
 // --- Default RPC URLs per chain ---
@@ -72,15 +71,21 @@ const getEnvVarName = (chainId: SupportedChainId): string =>
 
 let cacheUpdateInterval = 30_000; // 30s
 
-const cache = new Map<number, { provider: StaticJsonRpcProvider; ts: number }>();
-
 export const setRpcCacheUpdateInterval = (ms: number) => {
   cacheUpdateInterval = ms;
 };
 
-// --- getProvider ---
+// --- Shared provider resolution logic ---
 
-export const getProvider = async (chainId: SupportedChainId): Promise<StaticJsonRpcProvider> => {
+interface ProviderLike {
+  getBlockNumber(): Promise<number>;
+}
+
+const resolveProvider = async <T extends ProviderLike>(
+  chainId: SupportedChainId,
+  cache: Map<number, { provider: T; ts: number }>,
+  createProvider: (url: string) => T,
+): Promise<T> => {
   const cached = cache.get(chainId);
   if (cached && Date.now() - cached.ts < cacheUpdateInterval) {
     return cached.provider;
@@ -94,7 +99,7 @@ export const getProvider = async (chainId: SupportedChainId): Promise<StaticJson
     const hosts = hostsRaw.split(',').map((s) => s.trim()).filter(Boolean);
     for (const url of hosts) {
       try {
-        const provider = new StaticJsonRpcProvider({ url });
+        const provider = createProvider(url);
         await provider.getBlockNumber();
         cache.set(chainId, { provider, ts: Date.now() });
         return provider;
@@ -110,7 +115,33 @@ export const getProvider = async (chainId: SupportedChainId): Promise<StaticJson
     throw new Error(`No RPC URL available for chain ${chainId}`);
   }
 
-  const provider = new StaticJsonRpcProvider({ url: defaultUrl });
+  const provider = createProvider(defaultUrl);
   cache.set(chainId, { provider, ts: Date.now() });
   return provider;
+};
+
+// --- getProvider (ethers v5) ---
+
+type StaticJsonRpcProvider = import('@ethersproject/providers').StaticJsonRpcProvider;
+
+const cacheV5 = new Map<number, { provider: StaticJsonRpcProvider; ts: number }>();
+
+export const getProvider = async (chainId: SupportedChainId): Promise<StaticJsonRpcProvider> => {
+  return resolveProvider(chainId, cacheV5, (url) => {
+    const { StaticJsonRpcProvider } = require('@ethersproject/providers');
+    return new StaticJsonRpcProvider({ url });
+  });
+};
+
+// --- getProviderV6 (ethers v6) ---
+
+type JsonRpcProvider = import('ethers').JsonRpcProvider;
+
+const cacheV6 = new Map<number, { provider: JsonRpcProvider; ts: number }>();
+
+export const getProviderV6 = async (chainId: SupportedChainId): Promise<JsonRpcProvider> => {
+  return resolveProvider(chainId, cacheV6, (url) => {
+    const { JsonRpcProvider } = require('ethers');
+    return new JsonRpcProvider(url);
+  });
 };
