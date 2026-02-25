@@ -77,8 +77,9 @@ export const setRpcCacheUpdateInterval = (ms: number) => {
 
 // --- Shared provider resolution logic ---
 
-interface ProviderLike {
+export interface ProviderLike {
   getBlockNumber(): Promise<number>;
+  [key: string]: any;
 }
 
 const resolveProvider = async <T extends ProviderLike>(
@@ -122,11 +123,10 @@ const resolveProvider = async <T extends ProviderLike>(
 
 // --- getProvider (ethers v5) ---
 
-type StaticJsonRpcProvider = import('@ethersproject/providers').StaticJsonRpcProvider;
+const cacheV5 = new Map<number, { provider: ProviderLike; ts: number }>();
 
-const cacheV5 = new Map<number, { provider: StaticJsonRpcProvider; ts: number }>();
-
-export const getProvider = async (chainId: SupportedChainId): Promise<StaticJsonRpcProvider> => {
+/** Returns an ethers v5 StaticJsonRpcProvider. Requires `@ethersproject/providers`. */
+export const getProvider = async (chainId: SupportedChainId): Promise<ProviderLike> => {
   return resolveProvider(chainId, cacheV5, (url) => {
     const { StaticJsonRpcProvider } = require('@ethersproject/providers');
     return new StaticJsonRpcProvider({ url });
@@ -135,11 +135,10 @@ export const getProvider = async (chainId: SupportedChainId): Promise<StaticJson
 
 // --- getProviderV6 (ethers v6) ---
 
-type JsonRpcProvider = import('ethers').JsonRpcProvider;
+const cacheV6 = new Map<number, { provider: ProviderLike; ts: number }>();
 
-const cacheV6 = new Map<number, { provider: JsonRpcProvider; ts: number }>();
-
-export const getProviderV6 = async (chainId: SupportedChainId): Promise<JsonRpcProvider> => {
+/** Returns an ethers v6 JsonRpcProvider. Requires `ethers` v6. */
+export const getProviderV6 = async (chainId: SupportedChainId): Promise<ProviderLike> => {
   return resolveProvider(chainId, cacheV6, (url) => {
     const { JsonRpcProvider } = require('ethers');
     return new JsonRpcProvider(url);
