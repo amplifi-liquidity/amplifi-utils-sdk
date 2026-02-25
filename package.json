@@ -1,6 +1,6 @@
 {
   "name": "@amplifi-liquidity/amplifi-utils-sdk",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Shared utilities for Amplifi Liquidity services",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

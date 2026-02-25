@@ -140,7 +140,8 @@ const cacheV6 = new Map<number, { provider: ProviderLike; ts: number }>();
 /** Returns an ethers v6 JsonRpcProvider. Requires `ethers` v6. */
 export const getProviderV6 = async (chainId: SupportedChainId): Promise<ProviderLike> => {
   return resolveProvider(chainId, cacheV6, (url) => {
-    const { JsonRpcProvider } = require('ethers');
-    return new JsonRpcProvider(url);
+    const { JsonRpcProvider, Network } = require('ethers');
+    const network = Network.from(chainId);
+    return new JsonRpcProvider(url, network, { staticNetwork: network });
   });
 };

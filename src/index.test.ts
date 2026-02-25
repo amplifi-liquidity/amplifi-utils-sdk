@@ -18,6 +18,7 @@ jest.mock('ethers', () => {
   };
   return {
     JsonRpcProvider: jest.fn().mockImplementation(() => mockProvider),
+    Network: { from: jest.fn().mockImplementation((chainId: number) => ({ chainId })) },
   };
 });
 
@@ -124,13 +125,19 @@ describe('getProviderV6 (ethers v6)', () => {
     await getProviderV6(SupportedChainId.polygon);
     expect(JsonRpcProvider).toHaveBeenCalledWith(
       DEFAULT_RPC_URLS[SupportedChainId.polygon],
+      expect.objectContaining({ chainId: SupportedChainId.polygon }),
+      expect.objectContaining({ staticNetwork: expect.any(Object) }),
     );
   });
 
   it('should use env var RPC host when set', async () => {
     process.env.LINEA_RPC_HOSTS = 'https://custom-v6-rpc.example.com';
     await getProviderV6(SupportedChainId.linea);
-    expect(JsonRpcProvider).toHaveBeenCalledWith('https://custom-v6-rpc.example.com');
+    expect(JsonRpcProvider).toHaveBeenCalledWith(
+      'https://custom-v6-rpc.example.com',
+      expect.objectContaining({ chainId: SupportedChainId.linea }),
+      expect.objectContaining({ staticNetwork: expect.any(Object) }),
+    );
     delete process.env.LINEA_RPC_HOSTS;
   });
 
@@ -147,8 +154,8 @@ describe('getProviderV6 (ethers v6)', () => {
     await getProviderV6(SupportedChainId.sonic);
 
     expect(JsonRpcProvider).toHaveBeenCalledTimes(2);
-    expect(JsonRpcProvider).toHaveBeenNthCalledWith(1, 'https://bad-rpc.example.com');
-    expect(JsonRpcProvider).toHaveBeenNthCalledWith(2, 'https://good-rpc.example.com');
+    expect(JsonRpcProvider).toHaveBeenNthCalledWith(1, 'https://bad-rpc.example.com', expect.any(Object), expect.any(Object));
+    expect(JsonRpcProvider).toHaveBeenNthCalledWith(2, 'https://good-rpc.example.com', expect.any(Object), expect.any(Object));
     delete process.env.SONIC_RPC_HOSTS;
   });
 
