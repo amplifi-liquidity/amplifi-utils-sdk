@@ -1,4 +1,4 @@
-import { SupportedChainId } from '@ichidao/ichi-vaults-sdk';
+import { SupportedChainId } from '@amplifi-liquidity/amplifi-vaults-sdk';
 import { getProvider, getProviderV6, setRpcCacheUpdateInterval, DEFAULT_RPC_URLS } from './index';
 
 // Mock ethers v5
@@ -34,6 +34,12 @@ describe('DEFAULT_RPC_URLS', () => {
       expect(typeof DEFAULT_RPC_URLS[chainId]).toBe('string');
       expect(DEFAULT_RPC_URLS[chainId].startsWith('https://')).toBe(true);
     }
+  });
+
+  it('should use the official Robinhood Chain mainnet RPC URL', () => {
+    expect(DEFAULT_RPC_URLS[SupportedChainId.robinhood]).toBe(
+      'https://rpc.mainnet.chain.robinhood.com',
+    );
   });
 });
 
@@ -181,5 +187,6 @@ describe('env var derivation', () => {
     expect(SupportedChainId[SupportedChainId.polygon_zkevm].toUpperCase() + '_RPC_HOSTS').toBe('POLYGON_ZKEVM_RPC_HOSTS');
     expect(SupportedChainId[SupportedChainId.zksync_era].toUpperCase() + '_RPC_HOSTS').toBe('ZKSYNC_ERA_RPC_HOSTS');
     expect(SupportedChainId[SupportedChainId.base_sepolia].toUpperCase() + '_RPC_HOSTS').toBe('BASE_SEPOLIA_RPC_HOSTS');
+    expect(SupportedChainId[SupportedChainId.robinhood].toUpperCase() + '_RPC_HOSTS').toBe('ROBINHOOD_RPC_HOSTS');
   });
 });
