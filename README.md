@@ -10,7 +10,7 @@ npm install @amplifi-liquidity/amplifi-utils-sdk
 
 ### Peer dependencies
 
-- `@ichidao/ichi-vaults-sdk` (>=0.1.0)
+- `@amplifi-liquidity/amplifi-vaults-sdk` (>=1.0.20)
 - `@ethersproject/providers` (^5.0.0) — optional, needed for `getProvider`
 - `ethers` (^6.0.0) — optional, needed for `getProviderV6`
 
@@ -23,7 +23,7 @@ You only need the ethers version you use. Both can coexist.
 Returns a cached `StaticJsonRpcProvider` for a given chain.
 
 ```typescript
-import { SupportedChainId } from '@ichidao/ichi-vaults-sdk';
+import { SupportedChainId } from '@amplifi-liquidity/amplifi-vaults-sdk';
 import { getProvider } from '@amplifi-liquidity/amplifi-utils-sdk';
 
 const provider = await getProvider(SupportedChainId.polygon);
@@ -35,7 +35,7 @@ const blockNumber = await provider.getBlockNumber();
 Returns a cached `JsonRpcProvider` for a given chain.
 
 ```typescript
-import { SupportedChainId } from '@ichidao/ichi-vaults-sdk';
+import { SupportedChainId } from '@amplifi-liquidity/amplifi-vaults-sdk';
 import { getProviderV6 } from '@amplifi-liquidity/amplifi-utils-sdk';
 
 const provider = await getProviderV6(SupportedChainId.polygon);

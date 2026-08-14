@@ -1,4 +1,4 @@
-import { SupportedChainId } from '@ichidao/ichi-vaults-sdk';
+import { SupportedChainId } from '@amplifi-liquidity/amplifi-vaults-sdk';
 
 // --- Default RPC URLs per chain ---
 
@@ -46,6 +46,7 @@ export const DEFAULT_RPC_URLS: Record<SupportedChainId, string> = {
   [SupportedChainId.polygon]: 'https://polygon-rpc.com',
   [SupportedChainId.polygon_zkevm]: 'https://zkevm-rpc.com',
   [SupportedChainId.real]: 'https://real.drpc.org',
+  [SupportedChainId.robinhood]: 'https://rpc.mainnet.chain.robinhood.com',
   [SupportedChainId.rootstock]: 'https://mycrypto.rsk.co',
   [SupportedChainId.scroll]: 'https://1rpc.io/scroll',
   [SupportedChainId.skale_europa]: 'https://mainnet.skalenodes.com/v1/elated-tan-skat',
