@@ -2,6 +2,10 @@
   "name": "@amplifi-liquidity/amplifi-utils-sdk",
   "version": "1.0.6",
   "description": "Shared utilities for Amplifi Liquidity services",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/amplifi-liquidity/amplifi-utils-sdk.git"
+  },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "engines": {
