@@ -68,12 +68,66 @@ export const DEFAULT_RPC_URLS: Record<SupportedChainId, string> = {
 const getEnvVarName = (chainId: SupportedChainId): string =>
   `${SupportedChainId[chainId].toUpperCase()}_RPC_HOSTS`;
 
-// --- Cache ---
+// --- Additional public fallbacks ---
+// Tried after the configured hosts and DEFAULT_RPC_URLS, so one throttled endpoint never
+// leaves a chain with nowhere to go. Only list endpoints verified to serve the chain.
 
-let cacheUpdateInterval = 30_000; // 30s
+export const PUBLIC_FALLBACK_RPC_URLS: Partial<Record<SupportedChainId, string[]>> = {
+  [SupportedChainId.bsc]: [
+    'https://bsc-dataseed2.binance.org',
+    'https://bsc-dataseed3.binance.org',
+    'https://bsc-dataseed4.binance.org',
+    'https://bsc-rpc.publicnode.com',
+    'https://1rpc.io/bnb',
+  ],
+};
+
+// --- Cache and probing ---
+
+let cacheUpdateInterval = 5 * 60_000; // keep a healthy provider for 5 minutes
+let probeTimeoutMs = 5_000;
+
+/** Deadline for a single host health probe (default 5s). */
+export const setRpcProbeTimeout = (ms: number) => {
+  probeTimeoutMs = ms;
+};
+const HOST_COOLDOWN_MS = 5 * 60_000;
 
 export const setRpcCacheUpdateInterval = (ms: number) => {
   cacheUpdateInterval = ms;
+};
+
+// Hosts that recently failed a probe (e.g. HTTP 429 quota exhaustion) are skipped until
+// their cool-down ends, so callers don't re-probe a throttled endpoint on every request.
+const coolingHosts = new Map<string, number>();
+
+export const resetRpcHostHealth = () => {
+  coolingHosts.clear();
+};
+
+// A raw JSON-RPC probe with a hard deadline. Going through ethers would inherit its
+// retry/back-off on 429, which is exactly how one throttled host stalled every caller.
+const probeHost = async (url: string): Promise<boolean> => {
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_blockNumber', params: [] }),
+      signal: AbortSignal.timeout(probeTimeoutMs),
+    });
+    if (!response.ok) return false;
+    const body = (await response.json()) as { result?: unknown };
+    return typeof body.result === 'string' && /^0x[0-9a-f]+$/i.test(body.result);
+  } catch {
+    return false;
+  }
+};
+
+const candidateUrls = (chainId: SupportedChainId): string[] => {
+  const configured = (process.env[getEnvVarName(chainId)] ?? '')
+    .split(',').map((s) => s.trim()).filter(Boolean);
+  const fallbacks = [DEFAULT_RPC_URLS[chainId], ...(PUBLIC_FALLBACK_RPC_URLS[chainId] ?? [])].filter(Boolean);
+  return [...new Set([...configured, ...fallbacks])];
 };
 
 // --- Shared provider resolution logic ---
@@ -83,9 +137,13 @@ export interface ProviderLike {
   [key: string]: any;
 }
 
+type ProviderCache<T> = Map<number, { provider: T; ts: number }>;
+
+const inFlight = new WeakMap<ProviderCache<any>, Map<number, Promise<any>>>();
+
 const resolveProvider = async <T extends ProviderLike>(
   chainId: SupportedChainId,
-  cache: Map<number, { provider: T; ts: number }>,
+  cache: ProviderCache<T>,
   createProvider: (url: string) => T,
 ): Promise<T> => {
   const cached = cache.get(chainId);
@@ -93,33 +151,37 @@ const resolveProvider = async <T extends ProviderLike>(
     return cached.provider;
   }
 
-  // Try env var RPC hosts (comma-separated)
-  const envVar = getEnvVarName(chainId);
-  const hostsRaw = process.env[envVar];
+  // One probe per chain at a time: concurrent callers share it instead of each probing.
+  let pending = inFlight.get(cache);
+  if (!pending) inFlight.set(cache, (pending = new Map()));
+  const existing = pending.get(chainId);
+  if (existing) return existing;
 
-  if (hostsRaw) {
-    const hosts = hostsRaw.split(',').map((s) => s.trim()).filter(Boolean);
-    for (const url of hosts) {
-      try {
+  const resolution = (async () => {
+    const urls = candidateUrls(chainId);
+    if (urls.length === 0) throw new Error(`No RPC URL available for chain ${chainId}`);
+    const now = Date.now();
+    const ready = urls.filter((url) => (coolingHosts.get(url) ?? 0) <= now);
+    for (const url of ready) {
+      if (await probeHost(url)) {
+        coolingHosts.delete(url);
         const provider = createProvider(url);
-        await provider.getBlockNumber();
         cache.set(chainId, { provider, ts: Date.now() });
         return provider;
-      } catch {
-        // try next host
       }
+      coolingHosts.set(url, Date.now() + HOST_COOLDOWN_MS);
     }
+    // Every candidate failed or is cooling down: keep the previous provider if there was
+    // one, otherwise return the first candidate unprobed so callers fail on a real request.
+    if (cached) return cached.provider;
+    return createProvider(urls[0]);
+  })();
+  pending.set(chainId, resolution);
+  try {
+    return await resolution;
+  } finally {
+    pending.delete(chainId);
   }
-
-  // Fall back to default RPC URL
-  const defaultUrl = DEFAULT_RPC_URLS[chainId];
-  if (!defaultUrl) {
-    throw new Error(`No RPC URL available for chain ${chainId}`);
-  }
-
-  const provider = createProvider(defaultUrl);
-  cache.set(chainId, { provider, ts: Date.now() });
-  return provider;
 };
 
 // --- getProvider (ethers v5) ---

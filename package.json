@@ -1,9 +1,12 @@
 {
   "name": "@amplifi-liquidity/amplifi-utils-sdk",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "Shared utilities for Amplifi Liquidity services",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "build": "tsc",
     "prepublish": "tsc --incremental false",
@@ -15,8 +18,12 @@
     "@amplifi-liquidity/amplifi-vaults-sdk": ">=1.0.20"
   },
   "peerDependenciesMeta": {
-    "@ethersproject/providers": { "optional": true },
-    "ethers": { "optional": true }
+    "@ethersproject/providers": {
+      "optional": true
+    },
+    "ethers": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@ethersproject/providers": "^5.7.2",
